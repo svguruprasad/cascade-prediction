@@ -301,7 +301,7 @@ The difference: a planned, zero-downtime migration versus a cascading outage req
 
 \subsection{Scope}
 
-Cloud contact centers document approximately 300 quotas across all services. We model the 17 throughput quotas that scale with call volume and participate in cascades. The remaining 250+ are configuration quotas (flows per instance, queues, users) that are set once during provisioning and do not change with traffic. Configuration quotas fail at deployment time, not at runtime. They do not cascade.
+Cloud contact centers document approximately 300 quotas across all services. We model 17 throughput quotas that scale with call volume: concurrent calls, concurrent chats, concurrent emails, concurrent tasks, Lambda concurrency, DynamoDB WCU and RCU, Kinesis records per second, Lex concurrent sessions, Polly requests per second, Transcribe concurrent streams, Comprehend characters per second, SQS messages per second, CloudWatch PutMetricData TPS, Connect API TPS, and Contact Lens concurrent jobs. These are the quotas we measured and validated through our experiments. Additional quotas may participate in cascades under conditions we have not tested.
 
 \subsection{Applicability beyond migration}
 
