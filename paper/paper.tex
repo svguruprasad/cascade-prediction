@@ -71,6 +71,13 @@ Each quota $q_i$ has limit $L_i$, utilization $u_i$, and severity $s_i \in \{\te
 
 We measured amplification factors from a 3-function contact flow on live AWS infrastructure (90 calls, 2 runs, CloudWatch-confirmed):
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/fig1_dependency_graph.png}
+\caption{Measured service dependency graph. Solid red lines: always executed (Lambda 1 and 3). Dashed orange lines: conditional (Lambda 2, 60\% of calls). Numbers on edges are measured amplification factors confirmed by CloudWatch across two independent runs.}
+\label{fig:architecture}
+\end{figure}
+
 \begin{table}[h]
 \centering
 \begin{tabular}{@{}lccc@{}}
@@ -111,6 +118,13 @@ Concurrent & Succeeded & Throttled & Throttle Rate \\
 \caption{Measured cascade failure. CloudWatch confirmed 312 total throttles. Throttled calls produce zero downstream operations.}
 \label{tab:cascade}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig2_cascade_failure.png}
+\caption{Left: throttle rate increases non-linearly as concurrency exceeds the cap. Right: downstream operations lost (red) vs produced (green). At 200 concurrent (40x cap), 86\% of calls produce zero downstream operations.}
+\label{fig:cascade}
+\end{figure}
 
 \subsection{Fan-Out Variability}
 
@@ -204,6 +218,13 @@ Alibaba production (4,976 traces) & $>$1.0 & 200--1000\% & Essential \\
 \caption{Fan-out variability determines when ML adds value. All AWS measurements confirmed by CloudWatch (391 invocations for branching test).}
 \label{tab:crossdomain}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig3_cross_domain.png}
+\caption{Left: coefficient of variation increases with flow complexity. Right: model recommendation by complexity level. The GNN adds value only when conditional branching creates variable fan-out.}
+\label{fig:crossdomain}
+\end{figure}
 
 The finding is a gradient: for fixed pipelines, the static amplification model (9.5$\times$) is exact. As branching increases, the static model's error grows and the GNN's ability to predict per-request fan-out becomes valuable. In production systems with complex conditional logic (Alibaba: CV$>$1.0), the GNN is essential---a static model is wrong by 2--10$\times$ on individual requests.
 

@@ -1,0 +1,93 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="cascade-v2" name="3-Function Contact Flow">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Title -->
+        <mxCell id="title" value="Measured Service Dependency Graph&#xa;3-Function Contact Flow with Conditional Branching&#xa;(9.5x amplification per call, CloudWatch confirmed)" style="text;html=0;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="500" height="60" as="geometry" />
+        </mxCell>
+        <!-- Amazon Connect -->
+        <mxCell id="connect" value="Amazon Connect&#xa;Concurrent Calls" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.connect;" vertex="1" parent="1">
+          <mxGeometry x="520" y="100" width="60" height="60" as="geometry" />
+        </mxCell>
+        <!-- Branch decision -->
+        <mxCell id="branch" value="60% IVR&#xa;40% Direct" style="rhombus;whiteSpace=wrap;html=0;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="510" y="240" width="80" height="60" as="geometry" />
+        </mxCell>
+        <!-- Lambda 1: Contact Flow -->
+        <mxCell id="lambda1" value="Lambda 1&#xa;Contact Flow&#xa;(always)" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" vertex="1" parent="1">
+          <mxGeometry x="280" y="350" width="50" height="50" as="geometry" />
+        </mxCell>
+        <!-- Lambda 2: Lex Fulfillment -->
+        <mxCell id="lambda2" value="Lambda 2&#xa;Lex Fulfillment&#xa;(60% of calls)" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" vertex="1" parent="1">
+          <mxGeometry x="520" y="350" width="50" height="50" as="geometry" />
+        </mxCell>
+        <!-- Lambda 3: Post-Call -->
+        <mxCell id="lambda3" value="Lambda 3&#xa;Post-Call Analytics&#xa;(always)" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" vertex="1" parent="1">
+          <mxGeometry x="760" y="350" width="50" height="50" as="geometry" />
+        </mxCell>
+        <!-- DynamoDB -->
+        <mxCell id="dynamodb" value="Amazon DynamoDB&#xa;2.0x writes + 1.5x reads&#xa;per call" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#C925D1;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;" vertex="1" parent="1">
+          <mxGeometry x="180" y="560" width="50" height="50" as="geometry" />
+        </mxCell>
+        <!-- Kinesis -->
+        <mxCell id="kinesis" value="Amazon Kinesis&#xa;3.0x records&#xa;per call" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.kinesis;" vertex="1" parent="1">
+          <mxGeometry x="520" y="560" width="50" height="50" as="geometry" />
+        </mxCell>
+        <!-- CloudWatch -->
+        <mxCell id="cloudwatch" value="Amazon CloudWatch&#xa;3.0x metric puts&#xa;per call" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=0;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;" vertex="1" parent="1">
+          <mxGeometry x="860" y="560" width="50" height="50" as="geometry" />
+        </mxCell>
+        <!-- Edges -->
+        <mxCell id="e_connect_branch" value="1 call" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#FF0000;strokeWidth=3;html=0;" edge="1" source="connect" target="branch" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_branch_l1" value="always" style="exitX=0;exitY=0.5;entryX=0.5;entryY=0;strokeColor=#FF0000;strokeWidth=2;html=0;" edge="1" source="branch" target="lambda1" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_branch_l2" value="60%" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#FF8800;strokeWidth=2;dashed=1;html=0;" edge="1" source="branch" target="lambda2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_branch_l3" value="always" style="exitX=1;exitY=0.5;entryX=0.5;entryY=0;strokeColor=#FF0000;strokeWidth=2;html=0;" edge="1" source="branch" target="lambda3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l1_ddb" value="1 read + 1 write" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#CC0000;strokeWidth=1;html=0;" edge="1" source="lambda1" target="dynamodb" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l1_kinesis" value="1 record" style="exitX=1;exitY=1;entryX=0;entryY=0;strokeColor=#CC0000;strokeWidth=1;html=0;" edge="1" source="lambda1" target="kinesis" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l1_cw" value="1 metric" style="exitX=1;exitY=0.5;entryX=0;entryY=0;strokeColor=#CC0000;strokeWidth=1;html=0;" edge="1" source="lambda1" target="cloudwatch" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l2_ddb" value="2 reads + 1 write" style="exitX=0;exitY=1;entryX=1;entryY=0;strokeColor=#CC8800;strokeWidth=1;dashed=1;html=0;" edge="1" source="lambda2" target="dynamodb" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l2_cw" value="1 metric" style="exitX=1;exitY=1;entryX=0;entryY=0.5;strokeColor=#CC8800;strokeWidth=1;dashed=1;html=0;" edge="1" source="lambda2" target="cloudwatch" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l3_kinesis" value="2 records" style="exitX=0.5;exitY=1;entryX=1;entryY=0;strokeColor=#CC0000;strokeWidth=1;html=0;" edge="1" source="lambda3" target="kinesis" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l3_cw" value="2 metrics" style="exitX=0.5;exitY=1;entryX=1;entryY=0;strokeColor=#CC0000;strokeWidth=1;html=0;" edge="1" source="lambda3" target="cloudwatch" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Legend boxes -->
+        <mxCell id="legend_ivr" value="IVR PATH (60% of calls)&#xa;3 Lambda + 11 downstream ops = 14 total" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=middle;spacingLeft=10;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="750" width="300" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_direct" value="DIRECT PATH (40% of calls)&#xa;2 Lambda + 7 downstream ops = 9 total" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=middle;spacingLeft=10;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="800" width="300" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_measured" value="MEASURED (CloudWatch confirmed)&#xa;90 calls x 2 runs = identical results&#xa;Overall: 9.5x amplification per call&#xa;CV = 0.207 (variable fan-out)" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="420" y="740" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_cascade" value="CASCADE FAILURE (measured)&#xa;Lambda cap=5, 200 concurrent:&#xa;86% throttled, 1,248 ops lost&#xa;CloudWatch confirmed 312 throttles" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="760" y="740" width="280" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
