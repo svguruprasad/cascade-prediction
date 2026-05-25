@@ -53,21 +53,70 @@ def topology_ivr_enabled() -> CascadeGraph:
 
 def topology_full_analytics() -> CascadeGraph:
     """
-    Full-featured: Voice + IVR + Contact Lens (transcription + sentiment).
-    Maximum peripheral dependencies.
+    Full-featured: Voice + Chat + IVR + Contact Lens (transcription + sentiment).
+    Includes ALL Connect instance-level throughput quotas.
     """
-    g = topology_ivr_enabled()
+    g = CascadeGraph()
 
+    # Connect instance throughput quotas (all from public docs)
+    g.add_quota("concurrent_calls", 5000, 3500, Severity.FATAL, "Connect", 72)
+    g.add_quota("concurrent_chats", 5000, 2200, Severity.FATAL, "Connect", 72)
+    g.add_quota("concurrent_emails", 1000, 300, Severity.FATAL, "Connect", 72)
+    g.add_quota("concurrent_tasks", 2500, 800, Severity.DEGRADED, "Connect", 24)
+    g.add_quota("agent_queue_max", 10, 3, Severity.DEGRADED, "Connect", 24)
+
+    # Downstream AWS service quotas
+    g.add_quota("lambda_concurrency", 1000, 550, Severity.FATAL, "Lambda", 4)
+    g.add_quota("dynamodb_wcu", 25000, 12000, Severity.FATAL, "DynamoDB", 1)
+    g.add_quota("dynamodb_rcu", 25000, 6000, Severity.FATAL, "DynamoDB", 1)
+    g.add_quota("kinesis_records_sec", 1000, 400, Severity.COMPLIANCE, "Kinesis", 0.1)
+    g.add_quota("cloudwatch_put_tps", 500, 180, Severity.COSMETIC, "CloudWatch", 24)
+    g.add_quota("lex_concurrent", 200, 85, Severity.DEGRADED, "Lex", 48)
+    g.add_quota("polly_requests_sec", 80, 30, Severity.DEGRADED, "Polly", 24)
     g.add_quota("transcribe_streams", 200, 70, Severity.DEGRADED, "Transcribe", 48)
     g.add_quota("comprehend_chars_sec", 100000, 35000, Severity.DEGRADED, "Comprehend", 48)
     g.add_quota("sqs_messages_sec", 50000, 15000, Severity.FATAL, "SQS", 1)
 
-    # Contact Lens: every call gets transcribed + analyzed
+    # Connect API throttling quotas
+    g.add_quota("connect_api_tps", 8, 2, Severity.DEGRADED, "Connect API", 24)
+    g.add_quota("contact_lens_concurrent", 200, 50, Severity.DEGRADED, "Contact Lens", 48)
+
+    # Edges: Calls cascade
+    g.add_edge("concurrent_calls", "lambda_concurrency", 0.8, threshold=0.6)
+    g.add_edge("concurrent_calls", "dynamodb_wcu", 2.5, threshold=0.5)
+    g.add_edge("concurrent_calls", "dynamodb_rcu", 1.5, threshold=0.5)
+    g.add_edge("concurrent_calls", "kinesis_records_sec", 0.4, threshold=0.3)
+    g.add_edge("concurrent_calls", "lex_concurrent", 0.6, threshold=0.5)
     g.add_edge("concurrent_calls", "transcribe_streams", 0.9, threshold=0.4)
-    g.add_edge("transcribe_streams", "comprehend_chars_sec", 500, threshold=0.6)
-    # Overflow queue
     g.add_edge("concurrent_calls", "sqs_messages_sec", 1.5, threshold=0.9)
+    g.add_edge("concurrent_calls", "contact_lens_concurrent", 0.9, threshold=0.4)
+
+    # Chats cascade (same downstream, different ratios)
+    g.add_edge("concurrent_chats", "lambda_concurrency", 0.5, threshold=0.6)
+    g.add_edge("concurrent_chats", "dynamodb_wcu", 2.0, threshold=0.5)
+    g.add_edge("concurrent_chats", "dynamodb_rcu", 1.0, threshold=0.5)
+    g.add_edge("concurrent_chats", "lex_concurrent", 0.7, threshold=0.5)
+
+    # Emails cascade
+    g.add_edge("concurrent_emails", "lambda_concurrency", 0.2, threshold=0.6)
+    g.add_edge("concurrent_emails", "concurrent_tasks", 0.3, threshold=0.7)
+
+    # Lambda downstream
+    g.add_edge("lambda_concurrency", "dynamodb_wcu", 1.5, threshold=0.9)
+    g.add_edge("lambda_concurrency", "dynamodb_rcu", 1.0, threshold=0.9)
+    g.add_edge("lambda_concurrency", "cloudwatch_put_tps", 0.2, threshold=0.8)
+    g.add_edge("lambda_concurrency", "connect_api_tps", 0.1, threshold=0.8)
+
+    # Lex downstream
+    g.add_edge("lex_concurrent", "lambda_concurrency", 0.3, threshold=0.7)
+    g.add_edge("lex_concurrent", "polly_requests_sec", 0.4, threshold=0.5)
+
+    # Transcribe downstream
+    g.add_edge("transcribe_streams", "comprehend_chars_sec", 500, threshold=0.6)
+
+    # Overflow cascades
     g.add_edge("sqs_messages_sec", "lambda_concurrency", 0.3, threshold=0.85)
+    g.add_edge("agent_queue_max", "sqs_messages_sec", 5.0, threshold=0.8)
 
     return g
 
