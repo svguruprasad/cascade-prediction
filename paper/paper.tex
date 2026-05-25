@@ -284,35 +284,6 @@ PRE-SCALING PLAN:
   Cascade model additionally flags: 11 quotas
 \end{verbatim}
 
-\subsection{What existing tools provide}
-
-AWS provides quota management through Service Quotas (console and API), Quota Monitor for AWS (SO0005, CloudFormation-deployed alerting), and Trusted Advisor (flags quotas at 80\%+). Amazon Connect documents a ``Plan ahead with quotas'' guide recommending teams submit increase requests before migration.
-
-These tools answer: \emph{is this specific quota approaching its limit?}
-
-They do not answer: \emph{if I add 2,500 calls, which OTHER services will exhaust through cascade effects?}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{@{}lcc@{}}
-\toprule
-Capability & Existing tools & This framework \\
-\midrule
-Monitor individual quota utilization & Yes & Yes \\
-Alert at 80\% threshold & Yes & Yes \\
-Model cross-service dependencies & No & Yes \\
-Predict cascade from planned event & No & Yes \\
-Output specific increase amounts & No & Yes \\
-Account for amplification factors & No & Yes \\
-Identify quotas at risk from upstream pressure & No & Yes \\
-\bottomrule
-\end{tabular}
-\caption{Existing AWS quota tools vs this framework. Existing tools monitor per-service. This framework predicts cross-service cascade effects.}
-\label{tab:comparison}
-\end{table}
-
-The framework complements existing tools. It uses the same CloudWatch metrics and Service Quotas API. The difference is the dependency graph and propagation model that connects independently-monitored quotas into a system-level prediction.
-
 \subsection{What the customer gains}
 
 Without this tool, the team checks concurrent calls, sees headroom, and proceeds. On migration day, Lambda throttles, DynamoDB times out, Kinesis drops records, and CloudWatch stops receiving metrics. The contact center is functionally dark. Recovery requires identifying the root cause across 4 services, submitting emergency quota increase requests, and waiting for approval while calls fail.
