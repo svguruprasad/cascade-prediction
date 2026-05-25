@@ -22,29 +22,28 @@ class CascadeResult:
 
 
 def compute_cascade_load(edge: DependencyEdge, source_ratio: float,
-                         source_absolute_excess: float) -> float:
+                         source_load_increase: float) -> float:
     """
     Compute additional absolute load on target from source pressure.
 
-    Three zones:
-    1. Below threshold: no effect
-    2. Congestion zone (threshold to 1.0): quadratic ramp
-    3. Exhausted (>=1.0): retry storm multiplier
+    The cascade load is proportional to the INCOMING load on the source,
+    multiplied by the amplification factor when the source is under pressure.
 
-    Returns absolute additional load units on target.
-    Capped to prevent runaway amplification.
+    source_load_increase: how much additional load the source received
+                          (from the planned event or upstream cascades)
     """
     if source_ratio < edge.threshold:
         return 0.0
-    elif source_ratio < 1.0:
-        excess = source_ratio - edge.threshold
-        max_excess = 1.0 - edge.threshold
-        normalized = excess / max_excess
-        # Proportional to how far past threshold, scaled by amplification
-        return edge.amplification * (normalized ** 2) * min(source_absolute_excess, 10000)
+
+    # How stressed is the source? (0 at threshold, 1 at limit)
+    normalized_pressure = min((source_ratio - edge.threshold) / (1.0 - edge.threshold), 1.0)
+
+    if source_ratio < 1.0:
+        # Congestion: each unit of source load produces amplification * pressure^2 downstream
+        return edge.amplification * (normalized_pressure ** 2) * source_load_increase
     else:
-        # Exhausted: retries amplify, but capped
-        return edge.amplification * edge.retry_multiplier * min(source_absolute_excess, 10000)
+        # Exhausted: retry storms multiply the load
+        return edge.amplification * edge.retry_multiplier * source_load_increase
 
 
 def propagate_cascade(graph: CascadeGraph, max_iterations: int = 15,
@@ -67,13 +66,18 @@ def propagate_cascade(graph: CascadeGraph, max_iterations: int = 15,
             effective_util = source.utilization + cascade_loads[edge.source]
             effective_ratio = effective_util / source.limit if source.limit > 0 else 0
 
-            source_excess = max(0, effective_util - edge.threshold * source.limit)
-            additional = compute_cascade_load(edge, effective_ratio, source_excess)
+            # Source load increase = how much was added to this node
+            # (from direct event load + cascade from upstream)
+            source_load_increase = max(0, effective_util - source.utilization) + cascade_loads[edge.source]
+            if source_load_increase <= 0:
+                source_load_increase = max(0, effective_util - edge.threshold * source.limit)
 
-            # Cap per-edge contribution to target's limit
+            additional = compute_cascade_load(edge, effective_ratio, source_load_increase)
+
+            # Cap to prevent runaway
             target = graph.quotas.get(edge.target)
             if target:
-                additional = min(additional, target.limit * 3)
+                additional = min(additional, target.limit * 2)
 
             new_loads[edge.target] = new_loads.get(edge.target, 0) + additional
 
