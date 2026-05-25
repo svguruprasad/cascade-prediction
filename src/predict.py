@@ -36,14 +36,30 @@ def parse_event(event_str: str) -> Dict[str, float]:
 
 
 def apply_utilization_from_file(graph: CascadeGraph, util_file: str):
-    """Override graph utilization with real CloudWatch values."""
+    """Override graph utilization AND limits with real CloudWatch/Service Quotas values."""
     with open(util_file, 'r') as f:
         data = json.load(f)
 
+    # Apply real utilization
     for quota_name, info in data.get("quotas", {}).items():
         if quota_name in graph.quotas and info["value"] >= 0:
             graph.quotas[quota_name].utilization = info["value"]
-            print(f"  Set {quota_name} = {info['value']:.1f} (from CloudWatch)")
+            print(f"  Set {quota_name} utilization = {info['value']:.1f}")
+
+    # Apply real limits (overrides topology defaults)
+    limit_map = {
+        "lambda_concurrency": "lambda_concurrency",
+        "connect_concurrent_calls": "concurrent_calls",
+        "dynamodb_table_wcu": "dynamodb_wcu",
+        "dynamodb_table_rcu": "dynamodb_rcu",
+        "kinesis_shards": "kinesis_records_sec",
+    }
+    for limit_name, info in data.get("limits", {}).items():
+        graph_name = limit_map.get(limit_name)
+        if graph_name and graph_name in graph.quotas and info.get("value", -1) > 0:
+            old_limit = graph.quotas[graph_name].limit
+            graph.quotas[graph_name].limit = info["value"]
+            print(f"  Set {graph_name} limit = {info['value']:.0f} (was {old_limit:.0f})")
 
 
 def main():

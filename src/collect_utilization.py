@@ -1,13 +1,13 @@
 """
 collect_utilization.py — CloudWatch Quota Utilization Collector
 ===============================================================
-Pulls current quota utilization for all services in a contact center
-composition from CloudWatch metrics.
+Pulls current quota utilization AND actual applied limits for all services
+in a contact center composition from CloudWatch and Service Quotas APIs.
 
 Usage:
     python collect_utilization.py --region us-east-1 --profile default
 
-Output: JSON file with current utilization per quota, ready for cascade prediction.
+Output: JSON file with current utilization AND real limits per quota.
 """
 
 import boto3
@@ -15,6 +15,16 @@ import json
 import argparse
 from datetime import datetime, timezone, timedelta
 from typing import Dict
+
+
+# Quota limit codes (from AWS Service Quotas)
+QUOTA_LIMITS = {
+    "lambda_concurrency": {"service_code": "lambda", "quota_code": "L-B99A9384"},
+    "dynamodb_table_rcu": {"service_code": "dynamodb", "quota_code": "L-C8B9BFAB"},
+    "dynamodb_table_wcu": {"service_code": "dynamodb", "quota_code": "L-AD8F5CE5"},
+    "kinesis_shards": {"service_code": "kinesis", "quota_code": "L-5765E70F"},
+    "connect_concurrent_calls": {"service_code": "connect", "quota_code": "L-4A5FE8DE"},
+}
 
 
 # Service quota definitions with their CloudWatch metric mappings
@@ -106,6 +116,49 @@ def collect_metric(cw_client, metric_def: Dict, period_minutes: int = 5,
         return -1.0
 
 
+def discover_limits(region: str, profile: str = None) -> Dict:
+    """
+    Query Service Quotas API to get ACTUAL applied limits (not defaults).
+    Returns {quota_name: applied_limit_value}.
+    """
+    session_kwargs = {"region_name": region}
+    if profile:
+        session_kwargs["profile_name"] = profile
+
+    session = boto3.Session(**session_kwargs)
+    sq = session.client("service-quotas")
+
+    limits = {}
+    for quota_name, info in QUOTA_LIMITS.items():
+        try:
+            resp = sq.get_service_quota(
+                ServiceCode=info["service_code"],
+                QuotaCode=info["quota_code"]
+            )
+            limits[quota_name] = {
+                "value": resp["Quota"]["Value"],
+                "name": resp["Quota"]["QuotaName"],
+                "adjustable": resp["Quota"].get("Adjustable", True)
+            }
+        except Exception as e:
+            # Fallback: try get_aws_default_service_quota
+            try:
+                resp = sq.get_aws_default_service_quota(
+                    ServiceCode=info["service_code"],
+                    QuotaCode=info["quota_code"]
+                )
+                limits[quota_name] = {
+                    "value": resp["Quota"]["Value"],
+                    "name": resp["Quota"]["QuotaName"],
+                    "adjustable": resp["Quota"].get("Adjustable", True),
+                    "is_default": True
+                }
+            except Exception:
+                limits[quota_name] = {"value": -1, "error": str(e)[:80]}
+
+    return limits
+
+
 def collect_all(region: str, profile: str = None,
                 resources: Dict = None) -> Dict:
     """
@@ -135,8 +188,20 @@ def collect_all(region: str, profile: str = None,
     results = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "region": region,
-        "quotas": {}
+        "quotas": {},
+        "limits": {}
     }
+
+    # Discover actual applied limits
+    print("  Discovering actual quota limits...")
+    results["limits"] = discover_limits(region, profile)
+    for name, info in results["limits"].items():
+        if info.get("value", -1) > 0:
+            default_flag = " (default)" if info.get("is_default") else ""
+            print(f"    {name}: {info['value']:.0f}{default_flag}")
+        else:
+            print(f"    {name}: failed to retrieve")
+    print()
 
     for quota_name, metric_def in QUOTA_METRICS.items():
         resource_name = resources.get(quota_name)
