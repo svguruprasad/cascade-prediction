@@ -260,17 +260,44 @@ The framework translates predictions into specific quota increase requests.
 \subsection{Workflow}
 
 \begin{verbatim}
-# 1. Collect current utilization from CloudWatch
-python collect_utilization.py --region us-east-1 \
-  --table MyTable --stream MyStream
+$ python predict.py --event "concurrent_calls:2500" \
+    --topology full_analytics
 
-# 2. Predict cascade risk for a planned event
-python predict.py --event "concurrent_calls:2500" \
-  --topology full_analytics \
-  --utilization utilization.json --output plan.json
+Topology: full_analytics (17 quotas, 23 edges)
+Planned event: {'concurrent_calls': 2500.0}
+
+PRE-SCALING PLAN:
+  Quotas at risk: 12
+  Fatal risks: 4
+  Lead time needed: 72 hours (3.0 days)
+
+  Quota                Service      Sev     Current  Recommend
+  lambda_concurrency   Lambda       fatal   1000     5253
+  dynamodb_wcu         DynamoDB     fatal   25000    68097
+  dynamodb_rcu         DynamoDB     fatal   25000    40523
+  concurrent_calls     Connect      fatal   5000     7800
+  kinesis_records_sec  Kinesis      compl.  1000     4420
+  lex_concurrent       Lex          degrad  200      890
+  ...
+
+  Independent monitoring would flag: 1 quota
+  Cascade model additionally flags: 11 quotas
 \end{verbatim}
 
-The output specifies which quotas need increase, by how much, the severity if they exhaust (fatal, compliance, degraded, or cosmetic), and the lead time for each service's approval process.
+\subsection{What the customer gains}
+
+Without this tool, the team checks concurrent calls, sees headroom, and proceeds. On migration day, Lambda throttles, DynamoDB times out, Kinesis drops records, and CloudWatch stops receiving metrics. The contact center is functionally dark. Recovery requires identifying the root cause across 4 services, submitting emergency quota increase requests, and waiting for approval while calls fail.
+
+With this tool, the team runs one command three days before the migration. The output tells them:
+
+\begin{enumerate}
+  \item \textbf{Which services will fail:} 12 quotas at risk, not 1. Four are fatal (Lambda, DynamoDB write, DynamoDB read, Connect).
+  \item \textbf{By how much to increase:} Lambda needs 5,253 (current: 1,000). DynamoDB WCU needs 68,097 (current: 25,000). Specific numbers, not guesses.
+  \item \textbf{When to start:} Lead time is 72 hours. The Connect increase takes 3 days to approve. Start Monday for a Thursday migration.
+  \item \textbf{What they would have missed:} 11 of 12 at-risk quotas are invisible to independent monitoring. They exhaust purely from cascade pressure, not from direct load.
+\end{enumerate}
+
+The difference: a planned, zero-downtime migration versus a cascading outage requiring emergency intervention.
 
 \subsection{Scope}
 
