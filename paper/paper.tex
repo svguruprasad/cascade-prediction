@@ -25,7 +25,7 @@
 \maketitle
 
 \begin{abstract}
-Cloud platforms enforce service quotas independently, but production systems compose multiple services into interdependent architectures. When one service throttles, downstream services receive zero operations---a binary failure mode we measure directly. We present a framework combining Graph Attention Networks (GAT) with cascade propagation to predict which services will exhaust under planned capacity events. We measure amplification factors from live AWS infrastructure (1 Lambda invocation produces 3.5$\times$ downstream operations) and demonstrate that throttling causes 84\% data loss with 1,248 downstream operations lost in a single test. We train a GAT model on 4,976 production call graphs from Alibaba microservice traces, achieving F1=0.971 (precision=1.000, recall=0.944), a 28.2\% improvement over the best baseline. We show that service fan-out in production is highly variable (coefficient of variation $>$1.0 for 97\% of services), making static amplification models fundamentally inadequate. Code, data, and a CloudWatch-integrated prediction tool are publicly available.
+Cloud platforms enforce service quotas independently, but production systems compose multiple services into interdependent architectures. When one service throttles, downstream services receive zero operations---a binary failure mode we measure directly. We present a framework combining Graph Attention Networks (GAT) with cascade propagation to predict which services will exhaust under planned capacity events. We measure amplification factors from live AWS infrastructure (1 call triggers 3 Lambda invocations producing 9.5$\times$ total downstream operations) and demonstrate that throttling causes 84\% data loss with 1,248 downstream operations lost in a single test. We train a GAT model on 4,976 production call graphs from Alibaba microservice traces, achieving F1=0.971 (precision=1.000, recall=0.944), a 28.2\% improvement over the best baseline. We show that service fan-out in production is highly variable (coefficient of variation $>$1.0 for 97\% of services), making static amplification models fundamentally inadequate. Code, data, and a CloudWatch-integrated prediction tool are publicly available.
 \end{abstract}
 
 \section{Introduction}
@@ -34,14 +34,14 @@ In June 2025, a routine quota policy update at a major cloud provider triggered 
 
 This incident illustrates a gap in cloud reliability: quotas are enforced per-service, but services are composed. A cloud contact center uses serverless compute (AWS Lambda), databases (Amazon DynamoDB), streaming (Amazon Kinesis), and monitoring (Amazon CloudWatch) together. Each has independent quotas. When compute throttles, all downstream services receive zero operations---not degraded service, but zero.
 
-We make this concrete with direct measurement. In a controlled experiment on AWS (account 745351468190, us-east-1), we set Lambda reserved concurrency to 5 and sent 200 concurrent requests. Result: 86\% throttle rate, 1,248 downstream operations across DynamoDB, Kinesis, and CloudWatch that never occurred. CloudWatch independently confirmed 312 throttle events.
+We make this concrete with direct measurement. In a controlled experiment on AWS (us-east-1), we set Lambda reserved concurrency to 5 and sent 200 concurrent requests. Result: 86\% throttle rate, 1,248 downstream operations across DynamoDB, Kinesis, and CloudWatch that never occurred. CloudWatch independently confirmed 312 throttle events.
 
 The problem is acute for step-function load changes. Migration cutovers add thousands of concurrent calls instantaneously. There is no ramp to forecast. What matters is the dependency structure and how load amplifies through it.
 
 \subsection{Contributions}
 
 \begin{enumerate}
-  \item Direct measurement of cascade amplification factors from live AWS infrastructure: 1 Lambda invocation produces 3.5$\times$ downstream operations (0.5 DynamoDB reads + 1.0 writes + 1.0 Kinesis records + 1.0 CloudWatch puts).
+  \item Direct measurement of cascade amplification factors from a live 3-function contact flow on AWS: 1 call produces 3 Lambda invocations generating 9.5$\times$ total downstream operations (2.0$\times$ DynamoDB writes, 1.5$\times$ reads, 3.0$\times$ Kinesis records, 3.0$\times$ CloudWatch puts). Confirmed across two independent runs.
   \item Evidence that service fan-out is highly variable in production: analysis of 43,501 Alibaba traces shows CV$>$1.0 for 97\% of services, with the same service making 1 to 1,166 downstream calls depending on the request.
   \item A Graph Attention Network trained on 4,976 production call graphs that predicts cascade risk with F1=0.971, improving 28.2\% over the best static baseline.
   \item An end-to-end tool that collects CloudWatch utilization, predicts cascades, and outputs specific quota increase recommendations with lead times.
@@ -69,23 +69,24 @@ Each quota $q_i$ has limit $L_i$, utilization $u_i$, and severity $s_i \in \{\te
 
 \subsection{Measured Amplification}
 
-We measured amplification factors directly from AWS infrastructure (360 Lambda invocations, 4 concurrency levels):
+We measured amplification factors from a 3-function contact flow on live AWS infrastructure (90 calls, 2 runs, CloudWatch-confirmed):
 
 \begin{table}[h]
 \centering
-\begin{tabular}{@{}lcc@{}}
+\begin{tabular}{@{}lccc@{}}
 \toprule
-Downstream Service & Measured Factor & CloudWatch Metric \\
+Operation & Per Call & CloudWatch Metric & Confirmed \\
 \midrule
-DynamoDB Read (RCU) & 0.50$\times$ & ConsumedReadCapacityUnits \\
-DynamoDB Write (WCU) & 1.00$\times$ & ConsumedWriteCapacityUnits \\
-Kinesis Records & 1.00$\times$ & IncomingRecords \\
-CloudWatch Puts & 1.00$\times$ & PutMetricData (custom) \\
+Lambda invocations & 3.0$\times$ & AWS/Lambda Invocations & 270/90 \\
+DynamoDB writes & 2.0$\times$ & ConsumedWriteCapacityUnits & 180/90 \\
+DynamoDB reads & 1.5$\times$ & ConsumedReadCapacityUnits & 135/90 \\
+Kinesis records & 3.0$\times$ & IncomingRecords & 270/90 \\
+CloudWatch puts & 3.0$\times$ & Custom namespace & 270/90 \\
 \midrule
-\textbf{Total} & \textbf{3.50$\times$} & per invocation \\
+\textbf{Total downstream} & \textbf{9.5$\times$} & & \\
 \bottomrule
 \end{tabular}
-\caption{Measured amplification factors from 360 invocations. All values confirmed via CloudWatch.}
+\caption{Measured amplification from a 3-function contact flow (routing + IVR fulfillment + post-call analytics). Two runs produced identical results. All values confirmed via CloudWatch.}
 \label{tab:amplification}
 \end{table}
 
@@ -189,7 +190,7 @@ The GNN achieves perfect precision (zero false alarms) with 94.4\% recall. The g
 
 We validated the complete pipeline on live AWS infrastructure:
 \begin{enumerate}
-  \item \texttt{collect\_utilization.py} pulled 7 CloudWatch metrics from account 745351468190
+  \item \texttt{collect\_utilization.py} pulled 7 CloudWatch metrics from a live AWS environment
   \item \texttt{predict.py} applied real utilization to the full-analytics topology (17 quotas, 23 edges)
   \item For a planned 2,500-call migration: independent monitoring flags 1 quota; cascade model flags 9
   \item The 8 additional quotas (Lambda, DynamoDB, Kinesis, Lex, Polly, Transcribe, Comprehend, CloudWatch) would fail silently without cascade analysis
@@ -270,7 +271,7 @@ Services with auto-scaling (DynamoDB on-demand, Kinesis shard splitting) are fla
 
 \textbf{Throughput quotas only.} We model 15--25 throughput quotas out of approximately 300 total. Configuration quotas (flows, queues, users) are excluded. If a configuration quota is insufficient, the system fails at deployment time, not at runtime---a different failure mode not addressed here.
 
-\textbf{Single-function measurement.} Our measured amplification (3.5$\times$) comes from one Lambda function with four downstream calls. Production contact flows invoke 5--15 Lambda functions per call, each with different downstream patterns. Our measurement is a lower bound on total system amplification.
+\textbf{Three-function topology.} Our measured amplification (9.5$\times$) comes from a 3-function contact flow (routing, IVR fulfillment, post-call analytics). Production contact centers may have 5--15 functions per call with additional services (transcription, sentiment analysis, outbound campaigns). Our measurement represents a mid-complexity topology; the most complex deployments will have higher amplification.
 
 \textbf{Artificial throttle cap.} We induced throttling by setting reserved concurrency to 5. Production throttling occurs when account-level concurrency (default 1,000) is exhausted across all functions simultaneously---a shared-resource problem our single-function test does not fully capture.
 
@@ -284,7 +285,7 @@ Services with auto-scaling (DynamoDB on-demand, Kinesis shard splitting) are fla
 
 \section{Conclusion}
 
-We demonstrated three findings through direct measurement: (1) service amplification in composed architectures is 3.5$\times$ per invocation, (2) throttling produces binary failure with 84\% data loss, and (3) fan-out variability in production (CV$>$1.0) makes static models inadequate. A Graph Attention Network trained on production traces predicts cascade risk with F1=0.971, enabling proactive quota management before planned capacity events.
+We demonstrated three findings through direct measurement: (1) a 3-function contact flow produces 9.5$\times$ downstream operations per call (confirmed by CloudWatch across two independent runs), (2) throttling produces binary failure with 84\% data loss, and (3) fan-out variability in production (CV$>$1.0) makes static models inadequate. A Graph Attention Network trained on production traces predicts cascade risk with F1=0.971, enabling proactive quota management before planned capacity events.
 
 Code and tools: \url{https://github.com/svguruprasad/cascade-prediction}
 
