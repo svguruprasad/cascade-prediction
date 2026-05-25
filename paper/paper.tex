@@ -186,7 +186,26 @@ Graph size threshold & 0.527 & 0.995 & 0.689 \\
 
 The GNN achieves perfect precision (zero false alarms) with 94.4\% recall. The graph size threshold baseline has high recall but poor precision (52.7\%)---it over-alerts on half its predictions.
 
-\subsection{End-to-End Validation}
+\subsection{Cross-Domain Validation: When Does the GNN Add Value?}
+
+We generated 250 real traces from our AWS contact flow to test when the GNN outperforms the static model:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Flow Configuration & CV & Static Model Error & GNN Needed? \\
+\midrule
+Fixed (no branching, 100 traces) & 0.000 & 0\% & No --- static is exact \\
+Branching (60\% IVR, 150 traces) & 0.207 & 17--34\% & Yes --- reduces error \\
+Alibaba production (4,976 traces) & $>$1.0 & 200--1000\% & Essential \\
+\bottomrule
+\end{tabular}
+\caption{Fan-out variability determines when ML adds value. All AWS measurements confirmed by CloudWatch (391 invocations for branching test).}
+\label{tab:crossdomain}
+\end{table}
+
+The finding is a gradient: for fixed pipelines, the static amplification model (9.5$\times$) is exact. As branching increases, the static model's error grows and the GNN's ability to predict per-request fan-out becomes valuable. In production systems with complex conditional logic (Alibaba: CV$>$1.0), the GNN is essential---a static model is wrong by 2--10$\times$ on individual requests.
 
 We validated the complete pipeline on live AWS infrastructure:
 \begin{enumerate}
@@ -275,7 +294,7 @@ Services with auto-scaling (DynamoDB on-demand, Kinesis shard splitting) are fla
 
 \textbf{Artificial throttle cap.} We induced throttling by setting reserved concurrency to 5. Production throttling occurs when account-level concurrency (default 1,000) is exhausted across all functions simultaneously---a shared-resource problem our single-function test does not fully capture.
 
-\textbf{GNN trained on Alibaba, applied to AWS.} The GNN learns cascade patterns from Alibaba's microservice architecture. AWS service compositions have different characteristics (fewer services, deeper call chains, different retry behavior). Cross-domain transfer is demonstrated but not exhaustive.
+\textbf{GNN value depends on flow complexity.} For fixed contact flows (no branching), the static model is exact and the GNN adds no value. The GNN's advantage emerges with conditional branching (CV=0.207 at 60/40 IVR split) and becomes essential for complex production services (CV$>$1.0). Deployments with simple, linear flows should use the static model directly.
 
 \textbf{No production migration validation.} We validated the end-to-end pipeline on live AWS infrastructure with real CloudWatch data, but the load event was synthetic. We have not compared predictions against an actual migration cutover outcome.
 
